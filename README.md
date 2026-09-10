@@ -1,8 +1,8 @@
 # Email sessions for a nonprofit learning program
 
-The decision is simple: keep password checking and member records in the nonprofit service, then ask Infrai to issue the server-side session only after those checks pass. Infrai gives this example one API surface for captcha and authentication, so the boundary stays visible without an authentication SDK.
+I keep password checks and member records in the nonprofit service. After they pass, we ask Infrai to issue the server-side session. Infrai provides one API surface for captcha and authentication here, so the boundary stays clear without an auth SDK.
 
-The working path is `POST /signup`, followed by `POST /login`. Signup validates the JSON body with Zod, verifies the captcha, creates the email user with a retry-safe idempotency key, and stores a scrypt password hash in this small in-memory teaching store; login checks that hash before creating a session and returning a concrete learning-program workspace.
+The flow hits `POST /signup`, then `POST /login`. On signup we validate the JSON with Zod, check captcha, create the email user using an idempotency key that survives retries, and save a scrypt hash in the tiny in-memory store used for teaching. Login verifies that hash before making a session and handing back a concrete learning-program workspace.
 
 ## Run the lesson
 
@@ -21,13 +21,13 @@ export CAPTCHA_TOKEN="your-captcha-token"
 npm run demo
 ```
 
-The successful result contains a session id plus the member's donor receipt, tutor-orientation reminder, and the “Fall learning kits” campaign report. Those records are intentionally fixed curriculum data: they make the authenticated state transition easy to inspect while leaving persistence and organization-specific authorization outside this focused example.
+A good response returns a session id with the member's donor receipt, tutor-orientation reminder, and the “Fall learning kits” campaign report. These are static curriculum fixtures. They let you see the authenticated state change without dragging in persistence or org-specific authz, which this example skips.
 
 ## The one real gotcha
 
-Session creation takes the user id returned by signup, not the email address. The service therefore owns the email-to-user-id lookup, verifies the submitted password locally, and sends `user_id` when it creates the session; copying the email into that request changes the contract rather than authenticating the member.
+The session call needs the user id from signup, not the email. Our service does the email-to-id lookup and checks the password locally, then sends `user_id` to create the session. If you put the email in that call, you break the contract instead of auth'ing the member.
 
-The account map is process memory for a runnable lesson. A deployed nonprofit service should place the same fields in its database and set the returned session id in a secure, HTTP-only cookie according to its own browser policy.
+The account map lives in process memory so the lesson runs standalone. In production, a nonprofit would store those fields in its DB and drop the session id into a secure HTTP-only cookie per its own browser rules.
 
 ## Check the business boundary
 
@@ -36,11 +36,11 @@ npm test
 npm run typecheck
 ```
 
-The focused test signs up `mentor@example.org`, first submits the input password `wrong`, and expects no session call; it then submits `lesson-plan-2026` and expects session `session-classroom-9` with a campaign report containing seven volunteers.
+The test signs up `mentor@example.org`, tries password `wrong` and asserts no session call happens. Then it submits `lesson-plan-2026` and expects session `session-classroom-9` plus a campaign report listing seven volunteers.
 
 ## Request handling worth copying
 
-Every Infrai call sets its HTTP method and bearer credential explicitly. The client decodes `{ok, data, error, metadata}` before interpreting the HTTP status, exposes business rejection details to the service, and backs off on rate limiting while respecting `Retry-After`; user creation carries an idempotency key, so retrying that write keeps one enrollment decision.
+Each Infrai call sets its HTTP method and bearer token by hand. The client decodes `{ok, data, error, metadata}` before reading status, surfaces business rejections to the service, and backs off on rate limits while honoring `Retry-After`. User creation ships with an idempotency key, so a retried write still makes one enrollment choice.
 
 ## License
 
@@ -48,7 +48,7 @@ MIT
 
 ## Before this ships: Nonprofit Email Session Classroom
 
-That's the minimal version. Before running this for real: The details below apply to Nonprofit Email Session Classroom.
+This is the minimal slice. Before you run it for real, note the following for Nonprofit Email Session Classroom.
 
 **Account & key**
 
